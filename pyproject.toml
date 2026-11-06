@@ -1,0 +1,26 @@
+[project]
+name = "nativedisplay"
+version = "0.1.0"
+description = "Native display resizing and desktop reduction for remote devices"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{name = "HailPorts", email = "noreply@hailports.com"}]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/hailports/nativedisplay"
+
+[project.scripts]
+nativedisplay = "nativedisplay.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

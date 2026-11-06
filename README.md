@@ -1,0 +1,101 @@
+# nativedisplay
+
+Native display resizing and desktop reduction for remote devices.
+
+When an iPad, iPhone, or Mac is viewing this machine over Screen Sharing, Screens, Luna, or a VPN, `nativedisplay` sets the host display to that client's native logical size. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
+
+## Install
+
+```sh
+brew install displayplacer
+git clone https://github.com/hailports/nativedisplay.git
+cd nativedisplay
+./install.sh
+```
+
+`install.sh` uses `pipx install .` when pipx is present, and `pip install --user .` otherwise.
+
+`displayplacer` applies the mode. Install it with Homebrew. nativedisplay does not bundle it.
+
+A Homebrew formula is in `Formula/nativedisplay.rb` (HEAD only, depends on `displayplacer` and `python@3.12`):
+
+```sh
+brew install --HEAD --formula ./Formula/nativedisplay.rb
+```
+
+Tailscale is not required. If the `tailscale` command is installed, peer names from `tailscale whois` and `tailscale status` are used. If it is absent, Screen Sharing sockets, reverse DNS, mDNS, ARP/NDP, and Luna still classify the viewer.
+
+## Setup, once per display
+
+```sh
+nativedisplay setup
+```
+
+That asks for sudo one time. It reads the attached display's vendor and product from `ioreg`, writes a `scale-resolutions` override, and backs up any previous file. The override is installed at:
+
+```
+/Library/Displays/Contents/Resources/Overrides/DisplayVendorID-<hex>/DisplayProductID-<hex>
+```
+
+Each logical `WxH` is stored as three records: the 1x size (flag 1), the 2x framebuffer (flag 9, tail `0x200000`), and the bare 2x pair. That is what makes macOS treat the size as a native HiDPI mode. Sizes already stored in Apple's shorter 9-byte or 12-byte form are kept when they are not already in the catalog. Other keys in an existing override, including the EDID, are kept.
+
+`setup` does not restart WindowServer. New modes load on the next logout, display unplug/replug, or wake. Do that once on each Mac after setup. Until then, `apply` only selects a mode the panel already advertises.
+
+`nativedisplay sentinel` puts the file back if something deletes it. It does not change the live resolution. `nativedisplay add 1210x834` records another client size with the same encoding and merges it on the next setup (or immediately, when a display is detected).
+
+## How a viewer is chosen
+
+`nativedisplay apply` and `nativedisplay watch` look for an established Screen Sharing or VNC peer on ports 5900, 5901, and 3283 (`netstat`, then `nettop`, then `lsof`). A fresh Luna "Active Services" line, or Luna's own TCP ports, counts as an iPad.
+
+The peer name is resolved in this order:
+
+1. `tailscale whois`, then `tailscale status`, only when the `tailscale` CLI is on the machine. Account fields from whois are not kept.
+2. Reverse DNS / the system resolver (mDNS names that the resolver already knows).
+3. Hostnames in `arp -a` and `ndp -an`.
+
+A name containing `ipad` is an iPad. `iphone`, `ipod`, `android`, `pixel`, `galaxy`, or `phone` is a phone. `macbook`, `imac`, `mac mini`, `mac pro`, `mac studio`, or `mac` is a 16:10 laptop. `tailscale whois` can also classify `macOS`, `iPadOS`, and `android` when the hostname itself is generic. A bare `iOS` result is not guessed, because it is either an iPhone or an iPad.
+
+If several viewers match, the phone wins, then the iPad, then the Mac.
+
+| Viewer | Mode |
+| --- | --- |
+| iPad, including iPad Pro 13-inch | 1376x1032 HiDPI (framebuffer 2752x2064). If that mode is not advertised yet, the nearest 4:3 HiDPI mode, normally 1344x1008. |
+| iPhone or other phone | 1024x768 HiDPI, rotated 90 (portrait). If that mode is missing, the nearest 4:3 HiDPI mode, such as 800x600, still rotated. |
+| Mac laptop | 1680x1050 HiDPI. If that mode is missing, the nearest 16:10 HiDPI mode, such as 1440x900. |
+
+A `WxH` in the hostname is the client's pixel size. Even sizes at or above 2000x1500 are treated as a 2x framebuffer and halved before matching. Matching keeps the aspect ratio, prefers the exact size, then the nearest area, and prefers HiDPI. A different aspect is not applied.
+
+If the peer cannot be classified, the display is left as it is.
+
+`nativedisplay local` (and `restore`) pins the desktop and replays the arrangement saved before the first remote change. `nativedisplay auto` follows viewers again. `watch` is a poll (default 2 seconds). It skips a tick when the choice is unchanged, when no viewer is classified, or when the mode list cannot be read.
+
+## Commands
+
+```sh
+nativedisplay setup
+nativedisplay status
+nativedisplay list
+nativedisplay apply                 # current viewer
+nativedisplay apply 1680x1050
+nativedisplay apply --ipad
+nativedisplay apply --iphone
+nativedisplay apply --16x10
+nativedisplay apply --16x9
+nativedisplay add 1210x834
+nativedisplay watch
+nativedisplay local                 # desktop wins
+nativedisplay auto
+nativedisplay sentinel
+```
+
+`--dry` on `setup`, `apply`, `add`, and `watch` prints the action and does not change the display or install the override.
+
+`nativedisplay list` prints every unlocked logical resolution. The catalog is the usual scaled set across 16:10, 16:9, and 4:3, plus 1376x1032, 1344x1008, 1344x840, and the other iPad Pro logical sizes. Odd scaled sizes that macOS already builds for one specific LCD stay as they are; this tool adds modes, it does not remove the panel's own list.
+
+If another program is already changing the resolution, do not run `nativedisplay watch` at the same time. `setup` only writes the override file.
+
+## Tests
+
+```sh
+python3 -m pytest
+```
