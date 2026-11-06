@@ -86,9 +86,20 @@ nativedisplay watch
 nativedisplay local                 # desktop wins
 nativedisplay auto
 nativedisplay sentinel
+nativedisplay reflow --math
+nativedisplay reflow --dry
+nativedisplay reflow --install-agent
 ```
 
-`--dry` on `setup`, `apply`, `add`, and `watch` prints the action and does not change the display or install the override.
+`--dry` on `setup`, `apply`, `add`, `watch`, and `reflow` prints the action and does not change the display or install the override.
+
+## iPhone keyboard inset
+
+After the desktop is the phone's portrait canvas (1024x768 HiDPI, rotated 90, so the focused display is 768x1024 points), `nativedisplay reflow` keeps windows above the on-screen keyboard.
+
+It runs only when a fresh session file says `mobile_connected=1` and `mobile_profile=iphone`, and the focused display is 768x1024. The measured window bottom is y=761. The keyboard row begins near y=852 (91 points of room). Usable bottom was 963, so the yabai global bottom padding is 202. That padding is global, not per space. The previous global value is saved and put back on the next positively identified non-phone session. Floating windows this tool moved are clamped to y<=761 and restored later. Anyone else is left alone.
+
+Missing, stale (older than 45 seconds), malformed, or future-dated state does nothing. A missing yabai does nothing. `reflow` with no flags is one tick. `--dry` prints the math and does not set padding. `--install-agent` writes a plist and does not load it. yabai still needs its accessibility permission before a real tick can change padding.
 
 `nativedisplay list` prints every unlocked logical resolution. The catalog is the usual scaled set across 16:10, 16:9, and 4:3, plus 1376x1032, 1344x1008, 1344x840, and the other iPad Pro logical sizes. Odd scaled sizes that macOS already builds for one specific LCD stay as they are; this tool adds modes, it does not remove the panel's own list.
 

@@ -83,6 +83,16 @@ def _parser() -> argparse.ArgumentParser:
         ("sentinel", "restore the override file if it was deleted; never changes the live mode"),
     ):
         sub.add_parser(name, help=help_text)
+
+    reflow = sub.add_parser(
+        "reflow",
+        help="inset windows above an iPhone on-screen keyboard; no-op unless that session is current",
+    )
+    reflow.add_argument("--dry", action="store_true", help="print the decision and do not change padding")
+    reflow.add_argument("--status", action="store_true")
+    reflow.add_argument("--math", action="store_true", help="print the calibrated 761/202 geometry")
+    reflow.add_argument("--install-agent", action="store_true", help="write a LaunchAgent plist and do not load it")
+    reflow.add_argument("--dest", default="", help="directory for the plist; used with --install-agent")
     return parser
 
 
@@ -520,6 +530,38 @@ def cmd_status(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reflow(args: argparse.Namespace) -> int:
+    """Phone keyboard inset. Writes nothing unless the session is a live 768x1024 iPhone."""
+    import json
+
+    from nativedisplay.keyboard_reflow import Controller, geometry, render_agent
+
+    if args.math:
+        print(json.dumps(geometry(), sort_keys=True))
+        return 0
+    if args.install_agent:
+        dest = Path(args.dest) if args.dest else Path.home() / "Library" / "Application Support" / "nativedisplay"
+        dest.mkdir(parents=True, exist_ok=True)
+        script = Path(__file__).resolve().parent / "keyboard_reflow.py"
+        label = "com.hailports.nativedisplay.keyboard-reflow"
+        text = render_agent(dest, script, dest / "session", label=label)
+        target = dest / (label + ".plist")
+        target.write_text(text, encoding="utf-8")
+        print(json.dumps({"plist": str(target), "label": label, "loaded": False}))
+        return 0
+    controller = Controller()
+    if args.dry:
+        print(json.dumps(controller.once(dry_run=True), sort_keys=True))
+        return 0
+    if args.status:
+        print(json.dumps(controller.status(), sort_keys=True))
+        return 0
+    result = controller.once(dry_run=False)
+    if not result.get("ok") or result.get("moved") or result.get("restored"):
+        print(json.dumps(result, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -534,6 +576,7 @@ def main(argv: list[str] | None = None) -> int:
         "restore": cmd_local,
         "auto": cmd_auto,
         "sentinel": cmd_sentinel,
+        "reflow": cmd_reflow,
     }
     try:
         return commands[args.cmd](args)
