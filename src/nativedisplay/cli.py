@@ -14,7 +14,7 @@ from pathlib import Path
 
 from nativedisplay import __version__
 from nativedisplay.catalog import CATALOG, PROFILES, lookup, override_modes, parse_size
-from nativedisplay.discover import current_viewers, viewer_from_parts
+from nativedisplay.discover import current_viewers, luna_active, viewer_from_parts
 from nativedisplay.display import (
     apply_decision,
     find_displayplacer,
@@ -41,6 +41,7 @@ ACTIVATION = (
     "New modes load on the next logout, display hotplug, or wake. "
     "This command does not restart WindowServer."
 )
+LUNA_HOLD = "hold -- luna session owns the display"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -315,6 +316,7 @@ def _explicit_from_args(args: argparse.Namespace) -> tuple[tuple[int, int] | Non
 
 
 _NO_VIEWER = object()
+_LUNA = object()
 
 
 def _decision_for(args: argparse.Namespace, advertised):
@@ -324,15 +326,13 @@ def _decision_for(args: argparse.Namespace, advertised):
         print(str(exc), file=sys.stderr)
         return None, 2
     if size is None and not families:
+        if luna_active():
+            return _LUNA, 0
         viewers = current_viewers()
         families = [viewer.family for viewer in viewers if viewer.family]
-        natives = {}
-        for viewer in viewers:
-            if viewer.family and viewer.native and viewer.family not in natives:
-                natives[viewer.family] = viewer.native
-        if not families and not natives:
+        if not families:
             return _NO_VIEWER, 0
-        chosen = decide(families, latch=latch(), advertised=advertised, natives=natives)
+        chosen = decide(families, latch=latch(), advertised=advertised)
         return chosen, 0
     if families and size is None:
         chosen = decide(families, latch="auto", advertised=advertised, explicit_degree=degree)
@@ -356,6 +356,9 @@ def _advertised():
 
 
 def cmd_apply(args: argparse.Namespace) -> int:
+    if luna_active():
+        print(LUNA_HOLD)
+        return 0
     if latch() == "local" and not (args.size or args.ipad or args.iphone or args.sixteen_ten or args.sixteen_nine):
         print("local pin is set; display left unchanged (nativedisplay auto to follow viewers)")
         return 0
@@ -363,6 +366,9 @@ def cmd_apply(args: argparse.Namespace) -> int:
     chosen, code = _decision_for(args, advertised)
     if code:
         return code
+    if chosen is _LUNA:
+        print(LUNA_HOLD)
+        return 0
     if chosen is _NO_VIEWER:
         print("no classified viewer; display left unchanged")
         return 0
@@ -410,19 +416,17 @@ def cmd_add(args: argparse.Namespace) -> int:
 def _tick(dry: bool) -> str:
     if latch() == "local":
         return "local pin; unchanged"
+    if luna_active():
+        return LUNA_HOLD
     viewers = current_viewers()
     families = [viewer.family for viewer in viewers if viewer.family]
-    natives = {}
-    for viewer in viewers:
-        if viewer.family and viewer.native and viewer.family not in natives:
-            natives[viewer.family] = viewer.native
     if not families:
         return "no classified viewer; unchanged"
     advertised = _advertised() if find_displayplacer() else None
     # A watch tick must not guess a mode the panel has not advertised.
     if advertised is None:
         return "display modes unreadable; unchanged"
-    chosen = decide(families, latch="auto", advertised=advertised, natives=natives)
+    chosen = decide(families, latch="auto", advertised=advertised)
     if chosen is None:
         return "no same-aspect advertised mode; unchanged"
     previous = last_applied()
@@ -509,6 +513,8 @@ def cmd_status(_args: argparse.Namespace) -> int:
 
     binary = tailscale_bin()
     print(f"tailscale: {binary or 'absent (other paths still classify viewers)'}")
+    if luna_active():
+        print(LUNA_HOLD)
     viewers = current_viewers()
     if viewers:
         for viewer in viewers:

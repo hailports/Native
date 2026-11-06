@@ -1,10 +1,10 @@
 """Named logical resolutions unlocked as native HiDPI modes.
 
 The set is the Displays-style scaled list across 16:10, 16:9, and 4:3, plus
-the tablet sizes that were injected as native modes on real panels:
+the handheld canvases used on a real panel:
 
-  1344x1008   shared 4:3 tablet fallback (unrotated HiDPI); used when the client size is unknown
-  1376x1032   13-inch iPad Pro logical (framebuffer 2752x2064); used when that client size is known
+  1344x1008   iPad canvas, HiDPI, unrotated. Automatic iPad selection always uses this.
+  1376x1032   unlocked HiDPI size for an explicit apply (alias ipad-pro-13). Not automatic.
   1344x840    16:10 mode of the same width, used on a built-in panel
   1024x768    phone portrait base (rotated 90 when applied)
 
@@ -101,7 +101,7 @@ PROFILES: dict[str, Profile] = {
         1008,
         True,
         0,
-        "tablet landscape fallback: 1344x1008 HiDPI, unrotated; nearest advertised 4:3 if that mode is not live yet",
+        "iPad canvas: 1344x1008 HiDPI, unrotated",
     ),
     "iphone": Profile(
         "iphone",

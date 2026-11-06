@@ -4,7 +4,7 @@ Native display resizing and desktop reduction for remote devices.
 
 The command is `native`. `nativedisplay` is installed as an alias.
 
-When a tablet, iPhone, or Mac is viewing this Mac, `native` sets the host display to that client's native logical size. Detection runs entirely on the Mac: any VNC-compatible viewer that connects to the built-in screen sharing ports is seen without extra client settings. That includes Apple Screen Sharing, Screens, built-in VNC, RealVNC, TightVNC, TigerVNC, and Jump Desktop in VNC mode. Luna is detected on its own. A VPN or overlay network is optional and only helps name the device. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
+When an iPad, iPhone, or Mac is viewing this Mac, `native` sets the host display to that viewer's working canvas. Detection runs on the Mac. The client does not need Native installed or any extra settings. Viewers that connect to the built-in screen sharing ports 5900, 5901, and 3283 are seen. That includes Apple Screen Sharing, Screens, built-in VNC, RealVNC, TightVNC, TigerVNC, and Jump Desktop in VNC mode. A VPN or overlay network is optional and only helps name the device. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
 
 ## Install
 
@@ -25,7 +25,7 @@ A Homebrew formula is in `Formula/nativedisplay.rb` (HEAD only, depends on `disp
 brew install --HEAD --formula ./Formula/native.rb
 ```
 
-Tailscale is not required. If the `tailscale` command is installed, peer names from `tailscale whois` and `tailscale status` are used. If it is absent, Screen Sharing sockets, reverse DNS, mDNS, ARP/NDP, and Luna still classify the viewer.
+Tailscale is not required. If the `tailscale` command is installed, peer names from `tailscale whois` and `tailscale status` are used. If it is absent, Screen Sharing sockets, reverse DNS, mDNS, and ARP/NDP still name the viewer. A Luna session is detected separately and holds the display.
 
 ## Setup, once per display
 
@@ -47,7 +47,7 @@ Each logical `WxH` is stored as three records: the 1x size (flag 1), the 2x fram
 
 ## How a viewer is chosen
 
-`native apply` and `native watch` look for an established Screen Sharing or VNC peer on ports 5900, 5901, and 3283 (`netstat`, then `nettop`, then `lsof`). Any VNC-compatible client that connects to those host ports is seen; the client does not need Native installed or extra settings. A fresh Luna "Active Services" line, or Luna's own TCP ports, counts as a tablet. An unnamed public peer on those ports is also treated as a tablet, which covers a Screens Connect (or similar) relay that hides the real device name.
+`native apply` and `native watch` look for an established Screen Sharing or VNC peer on ports 5900, 5901, and 3283 (`netstat`, then `nettop`, then `lsof`). Any VNC-compatible client on those ports is seen. The client does not need Native installed or extra settings.
 
 The peer name is resolved in this order:
 
@@ -55,21 +55,22 @@ The peer name is resolved in this order:
 2. Reverse DNS / the system resolver (mDNS names that the resolver already knows).
 3. Hostnames in `arp -a` and `ndp -an`.
 
-A name containing `ipad`, `tablet`, or `tab` is a tablet, including Android names such as `Galaxy-Tab`, `Galaxy-Tab-S9`, or `Pixel-Tablet`. That tablet hint wins even when the same name also contains `android`, `pixel`, or `galaxy`. `iphone`, `ipod`, `phone`, or a bare `android` / `pixel` / `galaxy` with no tablet hint is a phone. `macbook`, `imac`, `mac mini`, `mac pro`, `mac studio`, or `mac` is a 16:10 laptop. `tailscale whois` can classify `macOS`, `iPadOS`, and a bare `android` OS (phone, unless the hostname already marked it a tablet). A bare `iOS` result is not guessed, because it is either an iPhone or an iPad.
+A name containing `iphone`, `ipod`, or `phone` is an iPhone. Otherwise a name containing `ipad` is an iPad. `macbook`, `imac`, `mac mini`, `mac pro`, `mac studio`, or `mac` is a Mac laptop. `tailscale whois` classifies `iPadOS` as an iPad and `macOS` as a Mac when the hostname did not already match. A bare `iOS` result is not guessed, because it is either an iPhone or an iPad. Other operating-system names are not guessed. A size written into the hostname is not the client's canvas.
 
-If several viewers match, the phone wins, then the tablet, then the Mac.
+If several viewers match, the iPhone wins, then the iPad, then the Mac.
 
 | Viewer | Mode |
 | --- | --- |
-| Tablet (iPad or any other tablet) | Landscape only. If the client size can be read (a `WxH` in the hostname, including a 2x framebuffer), that logical size is matched to the nearest same-aspect HiDPI mode. If you only know it is a tablet, the shared 4:3 fallback is 1344x1008 HiDPI, unrotated — not the 13-inch iPad Pro canvas 1376x1032. There is no tablet portrait mode. 1376x1032 stays in the catalog and is selected when that client size is known, or with `native apply 1376x1032`. |
-| iPhone or other phone | Portrait: 1024x768 HiDPI, rotated 90 (focused display 768x1024), plus the keyboard inset below that 3:4 canvas. If that mode is missing, the nearest 4:3 HiDPI mode, such as 800x600, still rotated. This is the only client that uses rotation. |
+| iPad (name contains `ipad`) | 1344x1008 HiDPI, unrotated. Every iPad uses this canvas, including a 13-inch iPad Pro. If 1344x1008 is not advertised yet, the nearest other same-aspect HiDPI mode is used. 1376x1032 is not selected on this path. |
+| iPhone (`iphone`, `ipod`, or `phone`) | 1024x768 HiDPI, rotated 90, so the focused display is 768x1024, plus the keyboard inset below. If that mode is missing, the nearest 4:3 HiDPI mode, such as 800x600, still rotated. This is the only client that uses rotation. |
 | Mac laptop | 1680x1050 HiDPI. If that mode is missing, the nearest 16:10 HiDPI mode, such as 1440x900. |
+| Unnamed public peer | iPad canvas, 1344x1008 HiDPI, unrotated. This is a Screens Connect-style relay that hides the device name. |
+| Unnamed LAN or private peer | Display left unchanged. |
+| Luna | Hold. `apply` and `watch` leave the display unchanged, including an explicit size. Luna owns the encoder for that session. |
 
-A `WxH` in the hostname is the client's pixel size. Even sizes at or above 2000x1500 are treated as a 2x framebuffer and halved before matching. Matching keeps the aspect ratio, prefers the exact size, then the nearest area, and prefers HiDPI. A different aspect is not applied.
+An unnamed public address is a globally routed peer. LAN, loopback, link-local, and shared addresses (including typical overlay ranges) are not guessed. If the peer cannot be classified, the display is left as it is.
 
-If the peer cannot be classified, the display is left as it is. Unnamed LAN or private addresses are not guessed.
-
-`nativedisplay local` (and `restore`) pins the desktop and replays the arrangement saved before the first remote change. `nativedisplay auto` follows viewers again. `watch` is a poll (default 2 seconds). It skips a tick when the choice is unchanged, when no viewer is classified, or when the mode list cannot be read.
+`nativedisplay local` (and `restore`) pins the desktop and replays the arrangement saved before the first remote change. `nativedisplay auto` follows viewers again. `watch` is a poll (default 2 seconds). It holds during a Luna session. It also skips a tick when the choice is unchanged, when no viewer is classified, or when the mode list cannot be read.
 
 ## Commands
 
@@ -103,7 +104,7 @@ It runs only when a fresh session file says `mobile_connected=1` and `mobile_pro
 
 Missing, stale (older than 45 seconds), malformed, or future-dated state does nothing. If the window manager that applies the padding is missing, reflow does nothing. `reflow` with no flags is one tick. `--dry` prints the math and does not set padding. `--install-agent` writes a plist and does not load it.
 
-`native list` prints every unlocked logical resolution. The catalog is the usual scaled set across 16:10, 16:9, and 4:3, plus 1344x1008, 1376x1032, 1344x840, and the other iPad Pro logical sizes. Odd scaled sizes that macOS already builds for one specific LCD stay as they are; this tool adds modes, it does not remove the panel's own list.
+`native list` prints every unlocked logical resolution. The catalog is the usual scaled set across 16:10, 16:9, and 4:3, plus the working canvases 1344x1008 and 1024x768, 1344x840, and other logical sizes including 1376x1032. 1376x1032 stays in the unlock list so `native apply 1376x1032` or `native apply ipad-pro-13` can select it. Automatic iPad matching does not use it. Odd scaled sizes that macOS already builds for one specific LCD stay as they are; this tool adds modes, it does not remove the panel's own list.
 
 If another program is already changing the resolution, do not run `native watch` at the same time. `setup` only writes the override file.
 

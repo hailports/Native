@@ -1,17 +1,17 @@
-"""Name a remote viewer without requiring Tailscale.
+"""Name a remote viewer without requiring a VPN.
 
 Proof that someone is viewing is an established Screen Sharing / VNC peer
-(:5900, :5901, or the Apple Remote Desktop port :3283), a fresh Luna session,
-or an explicit hint. The peer is classified from, in order:
+(:5900, :5901, or the Apple Remote Desktop port :3283) or an explicit hint.
+The peer is classified from, in order:
 
   1. tailscale whois / status, only when the tailscale CLI is installed
   2. reverse DNS, mDNS via the system resolver, ARP / NDP hostnames
-  3. a WxH carried in the hostname or hint text
 
 An unnamed LAN or private peer is not guessed. An unnamed public peer is
-treated as a tablet using the shared 4:3 fallback: that is how a Screens
-Connect (or similar) relay presents itself, and it lets the host resize
-with no client-side Native settings. Luna is also treated as a tablet.
+an iPad: that is how a Screens Connect (or similar) relay presents itself,
+and it lets the host resize with no client-side Native settings. A Luna
+session is detected so apply and watch can hold the current display. Luna
+does not select the iPad canvas.
 """
 
 from __future__ import annotations
@@ -25,15 +25,8 @@ import socket
 import subprocess
 from dataclasses import dataclass
 
-# Tablets first so Galaxy-Tab / Pixel-Tablet win over android / pixel / galaxy.
-TABLET_RX = re.compile(
-    r"ipad|tablet|\btab\b|galaxy[-_ ]?tab|pixel[-_ ]?tab|android[-_ ]?tab|\bsm-x",
-    re.I,
-)
-IPHONE_RX = re.compile(
-    r"iphone|ipod|android|\bpixel\b|\bgalaxy\b|\bphone\b|\bsm-\w+",
-    re.I,
-)
+IPAD_RX = re.compile(r"ipad", re.I)
+IPHONE_RX = re.compile(r"iphone|ipod|phone", re.I)
 MAC_RX = re.compile(
     r"macbook|imac|mac-?mini|mac-?pro|mac-?studio|\bmbp\b|\bmba\b|powerbook|\bmac\b",
     re.I,
@@ -56,10 +49,12 @@ def classify_hostname(name: str | None) -> str | None:
     if not name:
         return None
     host = name.split(".")[0]
-    if TABLET_RX.search(host):
-        return "ipad"
+    # A phone token outranks an iPad token in the same name, matching the
+    # live adapter (an iPhone must not be left on the iPad canvas).
     if IPHONE_RX.search(host):
         return "iphone"
+    if IPAD_RX.search(host):
+        return "ipad"
     if MAC_RX.search(host):
         return "mac"
     return None
@@ -90,9 +85,8 @@ def classify_whois(payload: dict | None) -> tuple[str | None, str | None]:
             family = "ipad"
         elif "macos" in os_name or os_name == "mac":
             family = "mac"
-        elif os_name == "android":
-            family = "iphone"
         # Bare "ios" is an iPhone or an iPad. Do not guess.
+        # A bare "android" OS is not an iPhone and not an iPad. Do not guess.
     return family, host
 
 
@@ -355,8 +349,9 @@ def identify_peers(
             host = arp_names[ip]
             source = source or "arp"
             family = family or classify_hostname(host)
-        native = native_in_text(host)
-        viewers.append(Viewer(family, host, ip, native, source or "peer"))
+        # A WxH in the hostname is not a client canvas. Automatic apply uses
+        # the fixed family profile.
+        viewers.append(Viewer(family, host, ip, None, source or "peer"))
     return viewers
 
 
@@ -371,11 +366,11 @@ def viewer_from_parts(
     family, host = classify_whois(whois)
     host = hostname or host
     family = classify_hostname(host) or family
-    native = native or native_in_text(host)
+    del native
     used = source
     if whois and source == "hint":
         used = "tailscale"
-    return Viewer(family, host, address, native, used)
+    return Viewer(family, host, address, None, used)
 
 
 def collect_peer_ips() -> list[str]:
@@ -442,9 +437,7 @@ def apply_relay_fallback(viewers: list[Viewer]) -> list[Viewer]:
     upgraded: list[Viewer] = []
     for viewer in viewers:
         if viewer.family is None and viewer.address and is_relay_address(viewer.address):
-            upgraded.append(
-                Viewer("ipad", viewer.hostname, viewer.address, viewer.native, "relay")
-            )
+            upgraded.append(Viewer("ipad", viewer.hostname, viewer.address, None, "relay"))
         else:
             upgraded.append(viewer)
     return upgraded
@@ -462,7 +455,9 @@ def current_viewers() -> list[Viewer]:
     ndp = shutil.which("ndp")
     if ndp:
         arp_text += "\n" + _run([ndp, "-an"], timeout=3)
-    viewers = apply_relay_fallback(
+    # Luna is intentionally not appended. A live Luna session owns the
+    # encoder; apply and watch call luna_active() and hold the display.
+    return apply_relay_fallback(
         identify_peers(
             collect_peer_ips(),
             dns=reverse_name,
@@ -471,6 +466,3 @@ def current_viewers() -> list[Viewer]:
             whois=whois,
         )
     )
-    if luna_active():
-        viewers.append(Viewer("ipad", None, None, None, "luna"))
-    return viewers

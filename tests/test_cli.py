@@ -23,13 +23,37 @@ def test_list_and_add_and_dry_setup(capsys, tmp_path, monkeypatch):
 def test_apply_family_and_unknown(capsys, tmp_path, monkeypatch):
     monkeypatch.setenv("NATIVEDISPLAY_STATE", str(tmp_path))
     monkeypatch.setattr("nativedisplay.cli.find_displayplacer", lambda: None)
+    monkeypatch.setattr("nativedisplay.cli.luna_active", lambda: False)
     monkeypatch.setattr("nativedisplay.cli.current_viewers", lambda: [])
     assert main(["apply", "--ipad", "--dry"]) == 0
     assert "1344x1008" in capsys.readouterr().out
     assert main(["apply", "--16x10", "--dry"]) == 0
     assert "1680x1050" in capsys.readouterr().out
+    assert main(["apply", "1376x1032", "--dry"]) == 0
+    assert "1376x1032" in capsys.readouterr().out
     assert main(["apply", "--dry"]) == 0
     assert "unchanged" in capsys.readouterr().out
+
+
+def test_luna_holds_apply_and_watch(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("NATIVEDISPLAY_STATE", str(tmp_path))
+    monkeypatch.setattr("nativedisplay.cli.luna_active", lambda: True)
+    calls = []
+    monkeypatch.setattr(
+        "nativedisplay.cli.apply_decision",
+        lambda *args, **kwargs: calls.append(args) or "set",
+    )
+    monkeypatch.setattr(
+        "nativedisplay.cli.current_viewers",
+        lambda: [type("V", (), {"family": "ipad", "native": (2752, 2064), "hostname": "ipad", "source": "dns"})()],
+    )
+    assert main(["apply", "--dry"]) == 0
+    assert "hold -- luna session owns the display" in capsys.readouterr().out
+    assert main(["apply", "1376x1032", "--dry"]) == 0
+    assert "hold -- luna session owns the display" in capsys.readouterr().out
+    assert main(["watch", "--once", "--dry"]) == 0
+    assert "hold -- luna session owns the display" in capsys.readouterr().out
+    assert calls == []
 
 
 def test_local_latch_blocks_watch(capsys, tmp_path, monkeypatch):
