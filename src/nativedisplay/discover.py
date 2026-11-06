@@ -9,9 +9,9 @@ or an explicit hint. The peer is classified from, in order:
   3. a WxH carried in the hostname or hint text
 
 An unnamed LAN or private peer is not guessed. An unnamed public peer is
-treated as an iPad: that is how a Screens Connect (or similar) relay
-presents itself, and it lets the host resize with no client-side Native
-settings. Luna is also treated as an iPad.
+treated as a tablet using the shared 4:3 fallback: that is how a Screens
+Connect (or similar) relay presents itself, and it lets the host resize
+with no client-side Native settings. Luna is also treated as a tablet.
 """
 
 from __future__ import annotations
@@ -25,8 +25,13 @@ import socket
 import subprocess
 from dataclasses import dataclass
 
-IPAD_RX = re.compile(r"ipad", re.I)
-IPHONE_RX = re.compile(r"iphone|ipod|android|\bpixel\b|\bgalaxy\b|\bphone\b|\bsm-\w+", re.I)
+# Tablets first. android / pixel / galaxy alone are not a phone: those
+# names are shared with Android tablets.
+TABLET_RX = re.compile(
+    r"ipad|tablet|\btab\b|galaxy[-_ ]?tab|pixel[-_ ]?tab|android[-_ ]?tab|\bsm-x",
+    re.I,
+)
+IPHONE_RX = re.compile(r"iphone|ipod|\bphone\b|android[-_ ]?phone", re.I)
 MAC_RX = re.compile(
     r"macbook|imac|mac-?mini|mac-?pro|mac-?studio|\bmbp\b|\bmba\b|powerbook|\bmac\b",
     re.I,
@@ -49,7 +54,7 @@ def classify_hostname(name: str | None) -> str | None:
     if not name:
         return None
     host = name.split(".")[0]
-    if IPAD_RX.search(host):
+    if TABLET_RX.search(host):
         return "ipad"
     if IPHONE_RX.search(host):
         return "iphone"
@@ -83,9 +88,8 @@ def classify_whois(payload: dict | None) -> tuple[str | None, str | None]:
             family = "ipad"
         elif "macos" in os_name or os_name == "mac":
             family = "mac"
-        elif os_name == "android":
-            family = "iphone"
-        # Bare "ios" is an iPhone or an iPad. Do not guess.
+        # Bare "ios" is an iPhone or an iPad. Bare "android" is a phone
+        # or a tablet. Do not guess either.
     return family, host
 
 

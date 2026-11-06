@@ -22,6 +22,7 @@ def test_aspects_and_natives_present():
     ):
         assert size in sizes
     assert lookup("ipad").w == 1344
+    assert lookup("tablet").w == 1344
     assert lookup("ipad-4x3").name == "1344x1008"
     assert lookup("ipad-pro-13").name == "1376x1032"
     assert lookup("16x10").name == "1680x1050"

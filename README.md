@@ -4,7 +4,7 @@ Native display resizing and desktop reduction for remote devices.
 
 The command is `native`. `nativedisplay` is installed as an alias.
 
-When an iPad, iPhone, or Mac is viewing this Mac, `native` sets the host display to that client's native logical size. Detection runs entirely on the Mac: any VNC-compatible viewer that connects to the built-in screen sharing ports is seen without extra client settings. That includes Apple Screen Sharing, Screens, built-in VNC, RealVNC, TightVNC, TigerVNC, and Jump Desktop in VNC mode. Luna is detected on its own. A VPN or overlay network is optional and only helps name the device. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
+When a tablet, iPhone, or Mac is viewing this Mac, `native` sets the host display to that client's native logical size. Detection runs entirely on the Mac: any VNC-compatible viewer that connects to the built-in screen sharing ports is seen without extra client settings. That includes Apple Screen Sharing, Screens, built-in VNC, RealVNC, TightVNC, TigerVNC, and Jump Desktop in VNC mode. Luna is detected on its own. A VPN or overlay network is optional and only helps name the device. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
 
 ## Install
 
@@ -47,7 +47,7 @@ Each logical `WxH` is stored as three records: the 1x size (flag 1), the 2x fram
 
 ## How a viewer is chosen
 
-`native apply` and `native watch` look for an established Screen Sharing or VNC peer on ports 5900, 5901, and 3283 (`netstat`, then `nettop`, then `lsof`). Any VNC-compatible client that connects to those host ports is seen; the client does not need Native installed or extra settings. A fresh Luna "Active Services" line, or Luna's own TCP ports, counts as an iPad. An unnamed public peer on those ports is also treated as an iPad, which covers a Screens Connect (or similar) relay that hides the real device name.
+`native apply` and `native watch` look for an established Screen Sharing or VNC peer on ports 5900, 5901, and 3283 (`netstat`, then `nettop`, then `lsof`). Any VNC-compatible client that connects to those host ports is seen; the client does not need Native installed or extra settings. A fresh Luna "Active Services" line, or Luna's own TCP ports, counts as a tablet. An unnamed public peer on those ports is also treated as a tablet, which covers a Screens Connect (or similar) relay that hides the real device name.
 
 The peer name is resolved in this order:
 
@@ -55,13 +55,13 @@ The peer name is resolved in this order:
 2. Reverse DNS / the system resolver (mDNS names that the resolver already knows).
 3. Hostnames in `arp -a` and `ndp -an`.
 
-A name containing `ipad` is an iPad. `iphone`, `ipod`, `android`, `pixel`, `galaxy`, or `phone` is a phone. `macbook`, `imac`, `mac mini`, `mac pro`, `mac studio`, or `mac` is a 16:10 laptop. `tailscale whois` can also classify `macOS`, `iPadOS`, and `android` when the hostname itself is generic. A bare `iOS` result is not guessed, because it is either an iPhone or an iPad.
+A name containing `ipad`, `tablet`, or `tab` is a tablet, including Android names such as `Galaxy-Tab` or `Pixel-Tablet`. `iphone`, `ipod`, or `phone` is a phone. `android`, `pixel`, or `galaxy` alone is not enough to call something a phone, because those names are also used by tablets. `macbook`, `imac`, `mac mini`, `mac pro`, `mac studio`, or `mac` is a 16:10 laptop. `tailscale whois` can classify `macOS` and `iPadOS` when the hostname itself is generic. A bare `iOS` or `android` OS result is not guessed, because each can be a phone or a tablet.
 
-If several viewers match, the phone wins, then the iPad, then the Mac.
+If several viewers match, the phone wins, then the tablet, then the Mac.
 
 | Viewer | Mode |
 | --- | --- |
-| iPad | Landscape only: 1344x1008 HiDPI, unrotated. There is no iPad portrait mode. If 1344x1008 is not advertised yet, the nearest 4:3 HiDPI mode is used. 1376x1032 stays in the catalog as an unlocked size (`native apply 1376x1032`). |
+| Tablet (iPad or any other tablet) | Landscape only. If the client size can be read (a `WxH` in the hostname, including a 2x framebuffer), that logical size is matched to the nearest same-aspect HiDPI mode. If you only know it is a tablet, the shared 4:3 fallback is 1344x1008 HiDPI, unrotated — not the 13-inch iPad Pro canvas 1376x1032. There is no tablet portrait mode. 1376x1032 stays in the catalog and is selected when that client size is known, or with `native apply 1376x1032`. |
 | iPhone or other phone | Portrait: 1024x768 HiDPI, rotated 90 (focused display 768x1024), plus the keyboard inset below that 3:4 canvas. If that mode is missing, the nearest 4:3 HiDPI mode, such as 800x600, still rotated. This is the only client that uses rotation. |
 | Mac laptop | 1680x1050 HiDPI. If that mode is missing, the nearest 16:10 HiDPI mode, such as 1440x900. |
 
