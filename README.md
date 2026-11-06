@@ -61,8 +61,8 @@ If several viewers match, the phone wins, then the iPad, then the Mac.
 
 | Viewer | Mode |
 | --- | --- |
-| iPad | 1344x1008 HiDPI. If that mode is not advertised yet, the nearest 4:3 HiDPI mode. 1376x1032 stays in the catalog as an unlocked size you can apply with `native apply 1376x1032`; it is not the automatic iPad canvas. The iPad canvas is not rotated. |
-| iPhone or other phone | 1024x768 HiDPI, rotated 90 (portrait, 768x1024 on screen), plus the keyboard inset. If that mode is missing, the nearest 4:3 HiDPI mode, such as 800x600, still rotated. This is the only client that uses rotation. |
+| iPad | Landscape only: 1376x1032 HiDPI (framebuffer 2752x2064). If that mode is not advertised yet, the nearest 4:3 HiDPI mode, normally 1344x1008. The iPad canvas is not rotated; there is no iPad portrait mode. |
+| iPhone or other phone | Portrait: 1024x768 HiDPI, rotated 90 (focused display 768x1024), plus the keyboard inset below that 3:4 canvas. If that mode is missing, the nearest 4:3 HiDPI mode, such as 800x600, still rotated. This is the only client that uses rotation. |
 | Mac laptop | 1680x1050 HiDPI. If that mode is missing, the nearest 16:10 HiDPI mode, such as 1440x900. |
 
 A `WxH` in the hostname is the client's pixel size. Even sizes at or above 2000x1500 are treated as a 2x framebuffer and halved before matching. Matching keeps the aspect ratio, prefers the exact size, then the nearest area, and prefers HiDPI. A different aspect is not applied.

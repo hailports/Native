@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from nativedisplay.catalog import PROFILES, Profile
 
 # Same-aspect nearest mode. 16:10 vs 16:9 is about 0.18, so 0.02 keeps a
-# fallback inside the family (1376x1032 or 1400x1050 for 1344x1008, 1440x900
-# for 1680x1050) and refuses a different aspect.
+# fallback inside the family (1344x1008 for 1376x1032, 1440x900 for 1680x1050)
+# and refuses a different aspect.
 ASPECT_TOLERANCE = 0.02
 FAMILY_ORDER = ("iphone", "ipad", "mac")
 
@@ -68,10 +68,7 @@ def resolve_profile(
 ) -> Decision | None:
     tw, th = profile.w, profile.h
     reason = profile.reason
-    # The working iPad canvas is the fixed 1344x1008 profile, even when the
-    # client reports 2752x2064 panel pixels (which would otherwise become
-    # 1376x1032). Only iPhone uses rotation; iPad stays degree 0.
-    if native and profile.family != "ipad":
+    if native:
         tw, th = logical_target(*native)
         reason = f"{profile.family} native {native[0]}x{native[1]} -> logical {tw}x{th}"
     if advertised is None:
