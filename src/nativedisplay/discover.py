@@ -6,12 +6,12 @@ The peer is classified from, in order:
 
   1. tailscale whois / status, only when the tailscale CLI is installed
   2. reverse DNS, mDNS via the system resolver, ARP / NDP hostnames
+  3. a WxH carried in the hostname or hint text
 
 An unnamed LAN or private peer is not guessed. An unnamed public peer is
-an iPad: that is how a Screens Connect (or similar) relay presents itself,
-and it lets the host resize with no client-side Native settings. A Luna
-session is detected so apply and watch can hold the current display. Luna
-does not select the iPad canvas.
+a tablet on the shared 4:3 fallback: that is how a Screens Connect (or
+similar) relay presents itself, and it lets the host resize with no
+client-side Native settings.
 """
 
 from __future__ import annotations
@@ -25,15 +25,18 @@ import socket
 import subprocess
 from dataclasses import dataclass
 
-IPAD_RX = re.compile(r"ipad", re.I)
-IPHONE_RX = re.compile(r"iphone|ipod|phone", re.I)
+# Tablets first. Bare android, pixel, and galaxy are not a phone and not a tablet.
+TABLET_RX = re.compile(
+    r"ipad|tablet|\btab\b|galaxy[-_ ]?tab|pixel[-_ ]?tab|android[-_ ]?tab|\bsm-x",
+    re.I,
+)
+IPHONE_RX = re.compile(r"iphone|ipod|\bphone\b|android[-_ ]?phone", re.I)
 MAC_RX = re.compile(
     r"macbook|imac|mac-?mini|mac-?pro|mac-?studio|\bmbp\b|\bmba\b|powerbook|\bmac\b",
     re.I,
 )
 SIZE_RX = re.compile(r"(\d{3,5})x(\d{3,5})", re.I)
 SCREEN_PORTS = ("5900", "5901", "3283")
-LUNA_PORTS = ("44554", "44555", "44556")
 
 
 @dataclass(frozen=True)
@@ -49,12 +52,10 @@ def classify_hostname(name: str | None) -> str | None:
     if not name:
         return None
     host = name.split(".")[0]
-    # A phone token outranks an iPad token in the same name, matching the
-    # live adapter (an iPhone must not be left on the iPad canvas).
+    if TABLET_RX.search(host):
+        return "ipad"
     if IPHONE_RX.search(host):
         return "iphone"
-    if IPAD_RX.search(host):
-        return "ipad"
     if MAC_RX.search(host):
         return "mac"
     return None
@@ -85,8 +86,8 @@ def classify_whois(payload: dict | None) -> tuple[str | None, str | None]:
             family = "ipad"
         elif "macos" in os_name or os_name == "mac":
             family = "mac"
-        # Bare "ios" is an iPhone or an iPad. Do not guess.
-        # A bare "android" OS is not an iPhone and not an iPad. Do not guess.
+        # Bare "ios" is an iPhone or an iPad. Bare "android" is a phone
+        # or a tablet. Do not guess either.
     return family, host
 
 
@@ -182,30 +183,6 @@ def parse_lsof(text: str) -> list[str]:
                 continue
             found.append(ip)
     return found
-
-
-def parse_luna_log(text: str) -> bool:
-    for line in reversed((text or "").splitlines()):
-        if "Server is alive with state:" in line:
-            return "Active Services" in line
-    return False
-
-
-def parse_luna_netstat(text: str) -> bool:
-    for line in (text or "").splitlines():
-        if "ESTABLISHED" not in line:
-            continue
-        parts = line.split()
-        if len(parts) < 5 or not parts[0].startswith("tcp"):
-            continue
-        local, remote = parts[3], parts[4]
-        port = local.rsplit(".", 1)[-1].rsplit(":", 1)[-1]
-        if port not in LUNA_PORTS:
-            continue
-        ip = remote.rsplit(".", 1)[0] if ":" not in remote else remote.rsplit(":", 1)[0]
-        if not _is_loopback(ip):
-            return True
-    return False
 
 
 def parse_arp(text: str) -> dict[str, str]:
@@ -349,9 +326,8 @@ def identify_peers(
             host = arp_names[ip]
             source = source or "arp"
             family = family or classify_hostname(host)
-        # A WxH in the hostname is not a client canvas. Automatic apply uses
-        # the fixed family profile.
-        viewers.append(Viewer(family, host, ip, None, source or "peer"))
+        native = native_in_text(host)
+        viewers.append(Viewer(family, host, ip, native, source or "peer"))
     return viewers
 
 
@@ -366,11 +342,11 @@ def viewer_from_parts(
     family, host = classify_whois(whois)
     host = hostname or host
     family = classify_hostname(host) or family
-    del native
+    native = native or native_in_text(host)
     used = source
     if whois and source == "hint":
         used = "tailscale"
-    return Viewer(family, host, address, None, used)
+    return Viewer(family, host, address, native, used)
 
 
 def collect_peer_ips() -> list[str]:
@@ -395,26 +371,6 @@ def collect_peer_ips() -> list[str]:
     return []
 
 
-def luna_active() -> bool:
-    from pathlib import Path
-
-    log = Path.home() / "Library/Logs/luna-display-keepalive.log"
-    try:
-        age = __import__("time").time() - log.stat().st_mtime
-    except OSError:
-        age = None
-    if age is not None and age <= 60:
-        try:
-            if parse_luna_log(log.read_text(errors="replace")[-8000:]):
-                return True
-        except OSError:
-            pass
-    netstat = shutil.which("netstat") or "/usr/sbin/netstat"
-    if os.path.exists(netstat):
-        return parse_luna_netstat(_run([netstat, "-an"], timeout=5))
-    return False
-
-
 def is_relay_address(ip: str) -> bool:
     """True for a globally routed peer. LAN, loopback, link-local, and
     shared (CGNAT / typical overlay) addresses stay unclassified.
@@ -427,12 +383,12 @@ def is_relay_address(ip: str) -> bool:
 
 
 def apply_relay_fallback(viewers: list[Viewer]) -> list[Viewer]:
-    """Name an otherwise unclassifiable public screen-share peer as iPad.
+    """Name an otherwise unclassifiable public screen-share peer as a tablet.
 
     A Screens Connect (or similar) relay presents a public address we
-    cannot reverse-name. The working host adapter treats that session as
-    an iPad so the canvas still resizes with no client-side settings.
-    Named peers and private addresses are left alone.
+    cannot reverse-name. That session uses the shared 4:3 fallback, with
+    no reported native size, so the host still resizes with no client-side
+    settings. Named peers and private addresses are left alone.
     """
     upgraded: list[Viewer] = []
     for viewer in viewers:
@@ -455,8 +411,6 @@ def current_viewers() -> list[Viewer]:
     ndp = shutil.which("ndp")
     if ndp:
         arp_text += "\n" + _run([ndp, "-an"], timeout=3)
-    # Luna is intentionally not appended. A live Luna session owns the
-    # encoder; apply and watch call luna_active() and hold the display.
     return apply_relay_fallback(
         identify_peers(
             collect_peer_ips(),

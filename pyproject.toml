@@ -1,6 +1,6 @@
 [project]
 name = "nativedisplay"
-version = "0.1.0"
+version = "1.0.0"
 description = "Native display resizing and desktop reduction for remote devices"
 readme = "README.md"
 requires-python = ">=3.9"

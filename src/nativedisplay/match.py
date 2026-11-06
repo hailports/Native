@@ -8,14 +8,13 @@ from nativedisplay.catalog import PROFILES, Profile
 
 # Same-aspect nearest mode. 16:10 vs 16:9 is about 0.18, so 0.02 keeps a
 # fallback inside the family (800x600 for 1024x768, 1440x900 for 1680x1050)
-# and refuses a different aspect. Automatic iPad selection never uses this
-# scorer to choose 1376x1032.
+# and refuses a different aspect.
 ASPECT_TOLERANCE = 0.02
 FAMILY_ORDER = ("iphone", "ipad", "mac")
-# Explicit apply can still select these. Automatic profiles must not.
-_NOT_AUTOMATIC = {
-    "ipad": {(1376, 1032)},
-}
+# 13-inch iPad Pro logical size (framebuffer 2752x2064). Automatic tablet
+# matching uses it only when the reported native maps to this size.
+# Otherwise it is too easy to treat a nearby 4:3 mode as the unknown-tablet canvas.
+_IPAD_PRO_13 = (1376, 1032)
 
 
 @dataclass(frozen=True)
@@ -71,15 +70,20 @@ def resolve_profile(
     *,
     native: tuple[int, int] | None = None,
 ) -> Decision | None:
-    # Automatic canvases are fixed. A reported client size, including a
-    # hostname WxH or a 2x framebuffer, does not retarget the profile.
-    del native
     tw, th = profile.w, profile.h
     reason = profile.reason
+    # Tablets stay landscape (degree 0). Only phones use rotation.
+    # A reported client size (hostname WxH, including a 2x framebuffer)
+    # is matched to the nearest same-aspect HiDPI mode. If we only know
+    # it is a tablet, the shared 4:3 fallback is 1344x1008.
+    if native:
+        tw, th = logical_target(*native)
+        reason = f"{profile.family} native {native[0]}x{native[1]} -> logical {tw}x{th}"
     if advertised is None:
         return Decision(tw, th, profile.hidpi, profile.degree, profile.family, reason, False)
-    blocked = _NOT_AUTOMATIC.get(profile.family, set())
-    pool = [mode for mode in advertised if (mode[0], mode[1]) not in blocked]
+    pool = advertised
+    if profile.family == "ipad" and (tw, th) != _IPAD_PRO_13:
+        pool = [mode for mode in advertised if (mode[0], mode[1]) != _IPAD_PRO_13]
     chosen = pick_mode(tw, th, profile.hidpi, pool)
     if chosen is None or not _aspect_ok(chosen[0], chosen[1], tw, th):
         return None
@@ -120,16 +124,16 @@ def decide(
 
     `latch="local"` is the desktop override: auto selection does nothing.
     An empty `families` list with no explicit size is "no hints".
-    `natives` is ignored. Each automatic family has one canvas.
+    A reported native size for a family replaces that family's fixed canvas.
     """
-    del natives
     if latch == "local" and explicit is None:
         return None
     if explicit is not None:
         return resolve_size(explicit[0], explicit[1], advertised, degree=explicit_degree)
+    natives = natives or {}
     for family in FAMILY_ORDER:
         if family not in families:
             continue
         profile = PROFILES[family]
-        return resolve_profile(profile, advertised)
+        return resolve_profile(profile, advertised, native=natives.get(family))
     return None

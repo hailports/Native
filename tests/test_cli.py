@@ -1,4 +1,5 @@
 from nativedisplay.cli import detect_displays, main
+from nativedisplay.discover import Viewer
 from nativedisplay.encode import load_plist, logical_modes
 
 
@@ -23,7 +24,6 @@ def test_list_and_add_and_dry_setup(capsys, tmp_path, monkeypatch):
 def test_apply_family_and_unknown(capsys, tmp_path, monkeypatch):
     monkeypatch.setenv("NATIVEDISPLAY_STATE", str(tmp_path))
     monkeypatch.setattr("nativedisplay.cli.find_displayplacer", lambda: None)
-    monkeypatch.setattr("nativedisplay.cli.luna_active", lambda: False)
     monkeypatch.setattr("nativedisplay.cli.current_viewers", lambda: [])
     assert main(["apply", "--ipad", "--dry"]) == 0
     assert "1344x1008" in capsys.readouterr().out
@@ -35,25 +35,29 @@ def test_apply_family_and_unknown(capsys, tmp_path, monkeypatch):
     assert "unchanged" in capsys.readouterr().out
 
 
-def test_luna_holds_apply_and_watch(capsys, tmp_path, monkeypatch):
+def test_apply_uses_reported_tablet_size(capsys, tmp_path, monkeypatch):
     monkeypatch.setenv("NATIVEDISPLAY_STATE", str(tmp_path))
-    monkeypatch.setattr("nativedisplay.cli.luna_active", lambda: True)
-    calls = []
-    monkeypatch.setattr(
-        "nativedisplay.cli.apply_decision",
-        lambda *args, **kwargs: calls.append(args) or "set",
-    )
+    monkeypatch.setattr("nativedisplay.cli.find_displayplacer", lambda: None)
     monkeypatch.setattr(
         "nativedisplay.cli.current_viewers",
-        lambda: [type("V", (), {"family": "ipad", "native": (2752, 2064), "hostname": "ipad", "source": "dns"})()],
+        lambda: [Viewer("ipad", "iPad-2752x2064", None, (2752, 2064), "dns")],
     )
     assert main(["apply", "--dry"]) == 0
-    assert "hold -- luna session owns the display" in capsys.readouterr().out
-    assert main(["apply", "1376x1032", "--dry"]) == 0
-    assert "hold -- luna session owns the display" in capsys.readouterr().out
-    assert main(["watch", "--once", "--dry"]) == 0
-    assert "hold -- luna session owns the display" in capsys.readouterr().out
-    assert calls == []
+    out = capsys.readouterr().out
+    assert "1376x1032" in out
+    assert "degree:0" in out
+
+
+def test_setup_walkthrough(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("NATIVEDISPLAY_STATE", str(tmp_path))
+    monkeypatch.setattr("nativedisplay.cli.find_displayplacer", lambda: None)
+    assert main(["setup", "--dry", "--vendor", "0x11", "--product", "0x21"]) == 0
+    out = capsys.readouterr().out
+    assert "scale-resolutions" in out
+    assert "sudo" in out
+    assert "native status" in out
+    assert "brew install displayplacer" in out
+    assert "does not restart WindowServer" in out
 
 
 def test_local_latch_blocks_watch(capsys, tmp_path, monkeypatch):

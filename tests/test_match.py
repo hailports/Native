@@ -3,12 +3,9 @@ from nativedisplay.discover import (
     apply_relay_fallback,
     classify_hostname,
     classify_whois,
-    current_viewers,
     identify_peers,
     is_relay_address,
     parse_arp,
-    parse_luna_log,
-    parse_luna_netstat,
     parse_netstat,
     parse_nettop,
 )
@@ -21,12 +18,14 @@ def quad(*parts: int) -> str:
 
 def test_hostname_families_select_native_modes():
     assert classify_hostname("ipad") == "ipad"
-    assert classify_hostname("Galaxy-Tab") is None
-    assert classify_hostname("Galaxy-Tab-S9") is None
-    assert classify_hostname("Pixel-Tablet") is None
-    assert classify_hostname("SM-X810") is None
+    assert classify_hostname("Galaxy-Tab") == "ipad"
+    assert classify_hostname("Galaxy-Tab-S9") == "ipad"
+    assert classify_hostname("Pixel-Tablet") == "ipad"
+    assert classify_hostname("SM-X810") == "ipad"
+    assert classify_hostname("android-tablet") == "ipad"
     assert classify_hostname("Office-iPhone") == "iphone"
     assert classify_hostname("android-phone") == "iphone"
+    assert classify_hostname("desk-phone") == "iphone"
     assert classify_hostname("android") is None
     assert classify_hostname("pixel") is None
     assert classify_hostname("galaxy") is None
@@ -75,7 +74,7 @@ def test_whois_os_without_guessing_bare_ios():
     family, _host = classify_whois({"Node": {"HostName": "office", "OS": "android"}})
     assert family is None
     family, _host = classify_whois({"Node": {"HostName": "Galaxy-Tab", "OS": "android"}})
-    assert family is None
+    assert family == "ipad"
     family, _host = classify_whois({"Node": {"HostName": "Office-iPhone", "OS": "android"}})
     assert family == "iphone"
     assert classify_whois(None) == (None, None)
@@ -91,19 +90,21 @@ def test_pick_mode_prefers_exact_then_nearest_same_aspect():
     assert (laptop.w, laptop.h) == (1440, 900)
     phone = decide(["iphone"], advertised=[(800, 600, True), (1920, 1080, False)])
     assert (phone.w, phone.h, phone.degree) == (800, 600, 90)
+    assert phone.degree == 90
+    assert decide(["ipad"]).degree == 0
     assert decide(["ipad"], advertised=[(1920, 1080, True)]) is None
     pixels = decide(
         ["ipad"],
         natives={"ipad": (2752, 2064)},
         advertised=[(1376, 1032, True), (1344, 1008, True)],
     )
-    assert (pixels.w, pixels.h, pixels.degree) == (1344, 1008, 0)
-    ignored = decide(
+    assert (pixels.w, pixels.h, pixels.degree) == (1376, 1032, 0)
+    tab = decide(
         ["ipad"],
         natives={"ipad": (2560, 1600)},
         advertised=[(1280, 800, True), (1344, 1008, True), (1680, 1050, True)],
     )
-    assert (ignored.w, ignored.h, ignored.degree) == (1344, 1008, 0)
+    assert (tab.w, tab.h, tab.degree) == (1280, 800, 0)
     assert decide(["ipad"], advertised=[(1376, 1032, True)]) is None
     fallback = decide(["ipad"], advertised=[(800, 600, True), (1376, 1032, True)])
     assert (fallback.w, fallback.h, fallback.degree) == (800, 600, 0)
@@ -117,7 +118,7 @@ def test_pick_mode_prefers_exact_then_nearest_same_aspect():
     assert scored == (1344, 1008, True)
 
 
-def test_socket_and_luna_parsers():
+def test_socket_parsers():
     host = quad(10, 1, 2, 3)
     peer = quad(203, 0, 113, 9)
     loop = quad(127, 0, 0, 1)
@@ -128,36 +129,22 @@ def test_socket_and_luna_parsers():
     nettop = f"tcp4 1 2 {host}:5900<->{peer}:50000 Established\n"
     nettop += f"tcp4 0 0 {host}:5900<->*:* Listen\n"
     assert parse_nettop(nettop) == [peer]
-    assert parse_luna_log("noise\nServer is alive with state: Active Services\n")
-    assert not parse_luna_log("Server is alive with state: Idle\n")
-    luna = f"tcp4 0 0 {host}.44554 {peer}.9 ESTABLISHED\n"
-    assert parse_luna_netstat(luna)
     arp = parse_arp(f"ipad ({peer}) at aa on en0\n? ({host}) at bb on en0\n")
     assert arp[peer] == "ipad"
     assert host not in arp
 
 
-def test_hostname_size_is_not_a_canvas():
+def test_hostname_size_is_the_client_canvas():
     peer = quad(203, 0, 113, 9)
     sized = identify_peers([peer], dns=lambda _ip: "iPad-2752x2064", whois=None)
     assert sized[0].family == "ipad"
-    assert sized[0].native is None
+    assert sized[0].native == (2752, 2064)
     chosen = decide(
         ["ipad"],
-        natives={"ipad": sized[0].native} if sized[0].native else None,
+        natives={"ipad": sized[0].native},
         advertised=[(1376, 1032, True), (1344, 1008, True)],
     )
-    assert (chosen.w, chosen.h, chosen.degree) == (1344, 1008, 0)
-
-
-def test_luna_does_not_select_ipad(monkeypatch):
-    monkeypatch.setattr("nativedisplay.discover.collect_peer_ips", lambda: [])
-    monkeypatch.setattr("nativedisplay.discover.tailscale_bin", lambda: None)
-    monkeypatch.setattr("nativedisplay.discover.luna_active", lambda: True)
-    viewers = current_viewers()
-    assert viewers == []
-    assert all(viewer.source != "luna" for viewer in viewers)
-    assert decide([viewer.family for viewer in viewers if viewer.family]) is None
+    assert (chosen.w, chosen.h, chosen.degree) == (1376, 1032, 0)
 
 
 def test_public_unnamed_peer_is_ipad_relay():
@@ -173,9 +160,10 @@ def test_public_unnamed_peer_is_ipad_relay():
     overlay = Viewer(None, None, "100.64.1.20", None, "peer")
     named = Viewer("iphone", "Office-iPhone", "8.8.8.8", None, "dns")
     out = apply_relay_fallback([public, private, overlay, named])
-    assert (out[0].family, out[0].source) == ("ipad", "relay")
+    assert (out[0].family, out[0].source, out[0].native) == ("ipad", "relay", None)
     assert out[1].family is None and out[1].source == "peer"
     assert out[2].family is None
     assert (out[3].family, out[3].source) == ("iphone", "dns")
+    relay = decide([out[0].family])
+    assert (relay.w, relay.h, relay.degree) == (1344, 1008, 0)
     assert decide([item.family for item in out if item.family]).family == "iphone"
-
