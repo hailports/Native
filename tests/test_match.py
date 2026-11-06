@@ -21,13 +21,14 @@ def quad(*parts: int) -> str:
 def test_hostname_families_select_native_modes():
     assert classify_hostname("ipad") == "ipad"
     assert classify_hostname("Galaxy-Tab") == "ipad"
+    assert classify_hostname("Galaxy-Tab-S9") == "ipad"
     assert classify_hostname("Pixel-Tablet") == "ipad"
     assert classify_hostname("SM-X810") == "ipad"
     assert classify_hostname("Office-iPhone") == "iphone"
     assert classify_hostname("android-phone") == "iphone"
-    assert classify_hostname("android") is None
-    assert classify_hostname("pixel") is None
-    assert classify_hostname("galaxy") is None
+    assert classify_hostname("android") == "iphone"
+    assert classify_hostname("pixel") == "iphone"
+    assert classify_hostname("galaxy") == "iphone"
     assert classify_hostname("MacBook-Pro") == "mac"
     assert classify_hostname("printer") is None
 
@@ -69,7 +70,7 @@ def test_whois_os_without_guessing_bare_ios():
     family, _host = classify_whois({"Node": {"HostName": "ipad", "OS": "iOS"}})
     assert family == "ipad"
     family, _host = classify_whois({"Node": {"HostName": "office", "OS": "android"}})
-    assert family is None
+    assert family == "iphone"
     family, _host = classify_whois({"Node": {"HostName": "Galaxy-Tab", "OS": "android"}})
     assert family == "ipad"
     assert classify_whois(None) == (None, None)

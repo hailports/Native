@@ -25,13 +25,15 @@ import socket
 import subprocess
 from dataclasses import dataclass
 
-# Tablets first. android / pixel / galaxy alone are not a phone: those
-# names are shared with Android tablets.
+# Tablets first so Galaxy-Tab / Pixel-Tablet win over android / pixel / galaxy.
 TABLET_RX = re.compile(
     r"ipad|tablet|\btab\b|galaxy[-_ ]?tab|pixel[-_ ]?tab|android[-_ ]?tab|\bsm-x",
     re.I,
 )
-IPHONE_RX = re.compile(r"iphone|ipod|\bphone\b|android[-_ ]?phone", re.I)
+IPHONE_RX = re.compile(
+    r"iphone|ipod|android|\bpixel\b|\bgalaxy\b|\bphone\b|\bsm-\w+",
+    re.I,
+)
 MAC_RX = re.compile(
     r"macbook|imac|mac-?mini|mac-?pro|mac-?studio|\bmbp\b|\bmba\b|powerbook|\bmac\b",
     re.I,
@@ -88,8 +90,9 @@ def classify_whois(payload: dict | None) -> tuple[str | None, str | None]:
             family = "ipad"
         elif "macos" in os_name or os_name == "mac":
             family = "mac"
-        # Bare "ios" is an iPhone or an iPad. Bare "android" is a phone
-        # or a tablet. Do not guess either.
+        elif os_name == "android":
+            family = "iphone"
+        # Bare "ios" is an iPhone or an iPad. Do not guess.
     return family, host
 
 

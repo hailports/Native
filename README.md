@@ -55,7 +55,7 @@ The peer name is resolved in this order:
 2. Reverse DNS / the system resolver (mDNS names that the resolver already knows).
 3. Hostnames in `arp -a` and `ndp -an`.
 
-A name containing `ipad`, `tablet`, or `tab` is a tablet, including Android names such as `Galaxy-Tab` or `Pixel-Tablet`. `iphone`, `ipod`, or `phone` is a phone. `android`, `pixel`, or `galaxy` alone is not enough to call something a phone, because those names are also used by tablets. `macbook`, `imac`, `mac mini`, `mac pro`, `mac studio`, or `mac` is a 16:10 laptop. `tailscale whois` can classify `macOS` and `iPadOS` when the hostname itself is generic. A bare `iOS` or `android` OS result is not guessed, because each can be a phone or a tablet.
+A name containing `ipad`, `tablet`, or `tab` is a tablet, including Android names such as `Galaxy-Tab`, `Galaxy-Tab-S9`, or `Pixel-Tablet`. That tablet hint wins even when the same name also contains `android`, `pixel`, or `galaxy`. `iphone`, `ipod`, `phone`, or a bare `android` / `pixel` / `galaxy` with no tablet hint is a phone. `macbook`, `imac`, `mac mini`, `mac pro`, `mac studio`, or `mac` is a 16:10 laptop. `tailscale whois` can classify `macOS`, `iPadOS`, and a bare `android` OS (phone, unless the hostname already marked it a tablet). A bare `iOS` result is not guessed, because it is either an iPhone or an iPad.
 
 If several viewers match, the phone wins, then the tablet, then the Mac.
 
