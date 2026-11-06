@@ -45,7 +45,7 @@ ACTIVATION = (
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="nativedisplay",
+        prog="native",
         description="Native display resizing and desktop reduction for remote devices.",
     )
     parser.add_argument("--version", action="version", version=f"nativedisplay {__version__}")
