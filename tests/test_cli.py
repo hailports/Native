@@ -25,7 +25,7 @@ def test_apply_family_and_unknown(capsys, tmp_path, monkeypatch):
     monkeypatch.setattr("nativedisplay.cli.find_displayplacer", lambda: None)
     monkeypatch.setattr("nativedisplay.cli.current_viewers", lambda: [])
     assert main(["apply", "--ipad", "--dry"]) == 0
-    assert "1376x1032" in capsys.readouterr().out
+    assert "1344x1008" in capsys.readouterr().out
     assert main(["apply", "--16x10", "--dry"]) == 0
     assert "1680x1050" in capsys.readouterr().out
     assert main(["apply", "--dry"]) == 0

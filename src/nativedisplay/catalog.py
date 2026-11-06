@@ -3,8 +3,8 @@
 The set is the Displays-style scaled list across 16:10, 16:9, and 4:3, plus
 the tablet sizes that were injected as native modes on real panels:
 
-  1376x1032   iPad landscape: iPad Pro 13-inch logical (framebuffer 2752x2064)
-  1344x1008   4:3 iPad-shaped fallback when 1376x1032 is not advertised
+  1344x1008   iPad landscape canvas (unrotated 4:3 HiDPI)
+  1376x1032   unlocked iPad Pro 13-inch logical (framebuffer 2752x2064); not the automatic iPad canvas
   1344x840    16:10 mode of the same width, used on a built-in panel
   1024x768    phone portrait base (rotated 90 when applied)
 
@@ -83,8 +83,8 @@ CATALOG: tuple[Mode, ...] = (
     _m(1024, 768, "4:3", "iphone", "phone"),
     _m(1152, 864, "4:3"),
     _m(1280, 960, "4:3"),
-    _m(1344, 1008, "4:3", "ipad-4x3"),
-    _m(1376, 1032, "4:3", "ipad", "ipad-pro-13"),
+    _m(1344, 1008, "4:3", "ipad", "ipad-4x3"),
+    _m(1376, 1032, "4:3", "ipad-pro-13"),
     _m(1400, 1050, "4:3"),
     _m(1600, 1200, "4:3"),
     _m(1920, 1440, "4:3"),
@@ -97,11 +97,11 @@ CATALOG: tuple[Mode, ...] = (
 PROFILES: dict[str, Profile] = {
     "ipad": Profile(
         "ipad",
-        1376,
-        1032,
+        1344,
+        1008,
         True,
         0,
-        "iPad landscape: 1376x1032 HiDPI; nearest advertised 4:3 if that mode is not live yet",
+        "iPad landscape: 1344x1008 HiDPI, unrotated; nearest advertised 4:3 if that mode is not live yet",
     ),
     "iphone": Profile(
         "iphone",

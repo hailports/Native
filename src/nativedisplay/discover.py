@@ -8,12 +8,15 @@ or an explicit hint. The peer is classified from, in order:
   2. reverse DNS, mDNS via the system resolver, ARP / NDP hostnames
   3. a WxH carried in the hostname or hint text
 
-An unnamed peer is not guessed. Luna is the exception: a live Luna session is
-an iPad viewing, which matches how that app is used.
+An unnamed LAN or private peer is not guessed. An unnamed public peer is
+treated as an iPad: that is how a Screens Connect (or similar) relay
+presents itself, and it lets the host resize with no client-side Native
+settings. Luna is also treated as an iPad.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -410,6 +413,36 @@ def luna_active() -> bool:
     return False
 
 
+def is_relay_address(ip: str) -> bool:
+    """True for a globally routed peer. LAN, loopback, link-local, and
+    shared (CGNAT / typical overlay) addresses stay unclassified.
+    """
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return bool(addr.is_global)
+
+
+def apply_relay_fallback(viewers: list[Viewer]) -> list[Viewer]:
+    """Name an otherwise unclassifiable public screen-share peer as iPad.
+
+    A Screens Connect (or similar) relay presents a public address we
+    cannot reverse-name. The working host adapter treats that session as
+    an iPad so the canvas still resizes with no client-side settings.
+    Named peers and private addresses are left alone.
+    """
+    upgraded: list[Viewer] = []
+    for viewer in viewers:
+        if viewer.family is None and viewer.address and is_relay_address(viewer.address):
+            upgraded.append(
+                Viewer("ipad", viewer.hostname, viewer.address, viewer.native, "relay")
+            )
+        else:
+            upgraded.append(viewer)
+    return upgraded
+
+
 def current_viewers() -> list[Viewer]:
     """Observers for one tick. Tailscale is consulted only when its CLI exists."""
     binary = tailscale_bin()
@@ -422,12 +455,14 @@ def current_viewers() -> list[Viewer]:
     ndp = shutil.which("ndp")
     if ndp:
         arp_text += "\n" + _run([ndp, "-an"], timeout=3)
-    viewers = identify_peers(
-        collect_peer_ips(),
-        dns=reverse_name,
-        arp_names=parse_arp(arp_text),
-        status_names=status,
-        whois=whois,
+    viewers = apply_relay_fallback(
+        identify_peers(
+            collect_peer_ips(),
+            dns=reverse_name,
+            arp_names=parse_arp(arp_text),
+            status_names=status,
+            whois=whois,
+        )
     )
     if luna_active():
         viewers.append(Viewer("ipad", None, None, None, "luna"))

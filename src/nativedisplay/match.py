@@ -68,7 +68,10 @@ def resolve_profile(
 ) -> Decision | None:
     tw, th = profile.w, profile.h
     reason = profile.reason
-    if native:
+    # Automatic iPad canvas stays 1344x1008 even if the client reports 2752x2064
+    # panel pixels (which would otherwise become 1376x1032). iPad is landscape
+    # only (degree 0). Only iPhone uses rotation.
+    if native and profile.family != "ipad":
         tw, th = logical_target(*native)
         reason = f"{profile.family} native {native[0]}x{native[1]} -> logical {tw}x{th}"
     if advertised is None:

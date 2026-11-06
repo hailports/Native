@@ -4,7 +4,7 @@ Native display resizing and desktop reduction for remote devices.
 
 The command is `native`. `nativedisplay` is installed as an alias.
 
-When an iPad, iPhone, or Mac is viewing this machine over Screen Sharing, Screens, Luna, or a VPN, `native` sets the host display to that client's native logical size. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
+When an iPad, iPhone, or Mac is viewing this Mac, `native` sets the host display to that client's native logical size. Detection runs entirely on the Mac: any VNC-compatible viewer that connects to the built-in screen sharing ports is seen without extra client settings. That includes Apple Screen Sharing, Screens, built-in VNC, RealVNC, TightVNC, TigerVNC, and Jump Desktop in VNC mode. Luna is detected on its own. A VPN or overlay network is optional and only helps name the device. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
 
 ## Install
 
@@ -47,7 +47,7 @@ Each logical `WxH` is stored as three records: the 1x size (flag 1), the 2x fram
 
 ## How a viewer is chosen
 
-`native apply` and `native watch` look for an established Screen Sharing or VNC peer on ports 5900, 5901, and 3283 (`netstat`, then `nettop`, then `lsof`). A fresh Luna "Active Services" line, or Luna's own TCP ports, counts as an iPad.
+`native apply` and `native watch` look for an established Screen Sharing or VNC peer on ports 5900, 5901, and 3283 (`netstat`, then `nettop`, then `lsof`). Any VNC-compatible client that connects to those host ports is seen; the client does not need Native installed or extra settings. A fresh Luna "Active Services" line, or Luna's own TCP ports, counts as an iPad. An unnamed public peer on those ports is also treated as an iPad, which covers a Screens Connect (or similar) relay that hides the real device name.
 
 The peer name is resolved in this order:
 
@@ -61,13 +61,13 @@ If several viewers match, the phone wins, then the iPad, then the Mac.
 
 | Viewer | Mode |
 | --- | --- |
-| iPad | Landscape only: 1376x1032 HiDPI (framebuffer 2752x2064). If that mode is not advertised yet, the nearest 4:3 HiDPI mode, normally 1344x1008. The iPad canvas is not rotated; there is no iPad portrait mode. |
+| iPad | Landscape only: 1344x1008 HiDPI, unrotated. There is no iPad portrait mode. If 1344x1008 is not advertised yet, the nearest 4:3 HiDPI mode is used. 1376x1032 stays in the catalog as an unlocked size (`native apply 1376x1032`). |
 | iPhone or other phone | Portrait: 1024x768 HiDPI, rotated 90 (focused display 768x1024), plus the keyboard inset below that 3:4 canvas. If that mode is missing, the nearest 4:3 HiDPI mode, such as 800x600, still rotated. This is the only client that uses rotation. |
 | Mac laptop | 1680x1050 HiDPI. If that mode is missing, the nearest 16:10 HiDPI mode, such as 1440x900. |
 
 A `WxH` in the hostname is the client's pixel size. Even sizes at or above 2000x1500 are treated as a 2x framebuffer and halved before matching. Matching keeps the aspect ratio, prefers the exact size, then the nearest area, and prefers HiDPI. A different aspect is not applied.
 
-If the peer cannot be classified, the display is left as it is.
+If the peer cannot be classified, the display is left as it is. Unnamed LAN or private addresses are not guessed.
 
 `nativedisplay local` (and `restore`) pins the desktop and replays the arrangement saved before the first remote change. `nativedisplay auto` follows viewers again. `watch` is a poll (default 2 seconds). It skips a tick when the choice is unchanged, when no viewer is classified, or when the mode list cannot be read.
 

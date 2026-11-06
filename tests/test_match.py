@@ -1,7 +1,10 @@
 from nativedisplay.discover import (
+    Viewer,
+    apply_relay_fallback,
     classify_hostname,
     classify_whois,
     identify_peers,
+    is_relay_address,
     parse_arp,
     parse_luna_log,
     parse_luna_netstat,
@@ -22,7 +25,7 @@ def test_hostname_families_select_native_modes():
     assert classify_hostname("printer") is None
 
     ipad = decide(["ipad"])
-    assert (ipad.w, ipad.h, ipad.hidpi, ipad.degree) == (1376, 1032, True, 0)
+    assert (ipad.w, ipad.h, ipad.hidpi, ipad.degree) == (1344, 1008, True, 0)
     phone = decide(["iphone"])
     assert (phone.w, phone.h, phone.hidpi, phone.degree) == (1024, 768, True, 90)
     mac = decide(["mac"])
@@ -64,7 +67,7 @@ def test_whois_os_without_guessing_bare_ios():
 def test_pick_mode_prefers_exact_then_nearest_same_aspect():
     both = [(1344, 1008, True), (1680, 1050, True), (1376, 1032, True), (1920, 1080, True)]
     chosen = decide(["ipad"], advertised=both)
-    assert (chosen.w, chosen.h, chosen.verified) == (1376, 1032, True)
+    assert (chosen.w, chosen.h, chosen.verified) == (1344, 1008, True)
     nearest = decide(["ipad"], advertised=[(1344, 1008, True), (1680, 1050, True)])
     assert (nearest.w, nearest.h) == (1344, 1008)
     laptop = decide(["mac"], advertised=[(1440, 900, True), (1920, 1080, True)])
@@ -77,7 +80,7 @@ def test_pick_mode_prefers_exact_then_nearest_same_aspect():
         natives={"ipad": (2752, 2064)},
         advertised=[(1376, 1032, True), (1344, 1008, True)],
     )
-    assert (pixels.w, pixels.h) == (1376, 1032)
+    assert (pixels.w, pixels.h) == (1344, 1008)
     scored = pick_mode(1376, 1032, True, [(1344, 1008, False), (1344, 1008, True)])
     assert scored == (1344, 1008, True)
 
@@ -100,3 +103,24 @@ def test_socket_and_luna_parsers():
     arp = parse_arp(f"ipad ({peer}) at aa on en0\n? ({host}) at bb on en0\n")
     assert arp[peer] == "ipad"
     assert host not in arp
+
+
+def test_public_unnamed_peer_is_ipad_relay():
+    assert is_relay_address("8.8.8.8")
+    assert not is_relay_address("192.168.1.20")
+    assert not is_relay_address("10.0.0.8")
+    assert not is_relay_address("100.64.1.20")
+    assert not is_relay_address("127.0.0.1")
+    assert not is_relay_address("not-an-ip")
+
+    public = Viewer(None, "relay-node", "8.8.8.8", None, "peer")
+    private = Viewer(None, "printer", "192.168.1.20", None, "peer")
+    overlay = Viewer(None, None, "100.64.1.20", None, "peer")
+    named = Viewer("iphone", "Office-iPhone", "8.8.8.8", None, "dns")
+    out = apply_relay_fallback([public, private, overlay, named])
+    assert (out[0].family, out[0].source) == ("ipad", "relay")
+    assert out[1].family is None and out[1].source == "peer"
+    assert out[2].family is None
+    assert (out[3].family, out[3].source) == ("iphone", "dns")
+    assert decide([item.family for item in out if item.family]).family == "iphone"
+
