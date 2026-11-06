@@ -6,6 +6,16 @@ The command is `native`. `nativedisplay` is installed as an alias.
 
 When a tablet, iPhone, or Mac is viewing this Mac, `native` sets the host display to that viewer's logical size. Detection runs on the Mac. The client does not need Native installed or any extra settings. Viewers that connect to the built-in screen sharing ports 5900, 5901, and 3283 are seen. That includes Apple Screen Sharing, Screens, built-in VNC, RealVNC, TightVNC, TigerVNC, and Jump Desktop in VNC mode. A VPN or overlay network is optional and only helps name the device. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
 
+## Demo
+
+![Native demo](docs/native_story.gif)
+
+![Native demo](docs/native_ipad.gif)
+
+![Native demo](docs/native_iphone.gif)
+
+Illustrative replay of Native display matching. Tablets stay landscape; iPhone has keyboard room below. See the Native 1.0 behavior notes for fallback matching.
+
 ## Install
 
 ```sh
