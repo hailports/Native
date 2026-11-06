@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install nativedisplay for the current user. One sudo happens later, on setup.
+# Install Native for the current user. One sudo happens later, on setup.
 set -eu
 cd "$(dirname "$0")"
 
@@ -12,7 +12,7 @@ if command -v pipx >/dev/null 2>&1; then
   pipx install --force .
 else
   python3 -m pip install --user .
-  echo "If nativedisplay is not on PATH, add the user script directory that pip just printed."
+  echo "If native is not on PATH, add the user script directory that pip just printed."
 fi
 
 if command -v displayplacer >/dev/null 2>&1 \
@@ -23,5 +23,5 @@ else
   echo "displayplacer is not installed. On the Mac: brew install displayplacer"
 fi
 
-echo "Next, on the Mac: nativedisplay setup"
+echo "Next, on the Mac: native setup"
 echo "Then log out, replug the display, or wake from sleep so the new modes load."

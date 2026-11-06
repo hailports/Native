@@ -9,9 +9,10 @@ authors = [{name = "HailPorts", email = "noreply@hailports.com"}]
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/hailports/nativedisplay"
+Homepage = "https://github.com/hailports/Native"
 
 [project.scripts]
+native = "nativedisplay.cli:main"
 nativedisplay = "nativedisplay.cli:main"
 
 [build-system]

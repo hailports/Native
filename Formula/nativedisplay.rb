@@ -1,8 +1,8 @@
 class Nativedisplay < Formula
   desc "Native display resizing and desktop reduction for remote devices"
-  homepage "https://github.com/hailports/nativedisplay"
+  homepage "https://github.com/hailports/Native"
   license "MIT"
-  head "https://github.com/hailports/nativedisplay.git", branch: "main"
+  head "https://github.com/hailports/Native.git", branch: "main"
   depends_on "python@3.12"
   depends_on "displayplacer"
 
@@ -12,6 +12,6 @@ class Nativedisplay < Formula
   end
 
   test do
-    assert_match "nativedisplay", shell_output("#{bin}/nativedisplay --help")
+    assert_match "native", shell_output("#{bin}/native --help")
   end
 end

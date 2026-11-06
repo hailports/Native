@@ -1,26 +1,28 @@
-# nativedisplay
+# Native
 
 Native display resizing and desktop reduction for remote devices.
 
-When an iPad, iPhone, or Mac is viewing this machine over Screen Sharing, Screens, Luna, or a VPN, `nativedisplay` sets the host display to that client's native logical size. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
+The command is `native`. `nativedisplay` is installed as an alias.
+
+When an iPad, iPhone, or Mac is viewing this machine over Screen Sharing, Screens, Luna, or a VPN, `native` sets the host display to that client's native logical size. HiDPI is used when the panel advertises it. The same modes are unlocked on a built-in LCD and on a dummy HDMI panel.
 
 ## Install
 
 ```sh
 brew install displayplacer
-git clone https://github.com/hailports/nativedisplay.git
-cd nativedisplay
+git clone https://github.com/hailports/Native.git
+cd Native
 ./install.sh
 ```
 
 `install.sh` uses `pipx install .` when pipx is present, and `pip install --user .` otherwise.
 
-`displayplacer` applies the mode. Install it with Homebrew. nativedisplay does not bundle it.
+`displayplacer` applies the mode. Install it with Homebrew. Native does not bundle it.
 
 A Homebrew formula is in `Formula/nativedisplay.rb` (HEAD only, depends on `displayplacer` and `python@3.12`):
 
 ```sh
-brew install --HEAD --formula ./Formula/nativedisplay.rb
+brew install --HEAD --formula ./Formula/native.rb
 ```
 
 Tailscale is not required. If the `tailscale` command is installed, peer names from `tailscale whois` and `tailscale status` are used. If it is absent, Screen Sharing sockets, reverse DNS, mDNS, ARP/NDP, and Luna still classify the viewer.
@@ -28,7 +30,7 @@ Tailscale is not required. If the `tailscale` command is installed, peer names f
 ## Setup, once per display
 
 ```sh
-nativedisplay setup
+native setup
 ```
 
 That asks for sudo one time. It reads the attached display's vendor and product from `ioreg`, writes a `scale-resolutions` override, and backs up any previous file. The override is installed at:
@@ -72,23 +74,23 @@ If the peer cannot be classified, the display is left as it is.
 ## Commands
 
 ```sh
-nativedisplay setup
-nativedisplay status
-nativedisplay list
-nativedisplay apply                 # current viewer
-nativedisplay apply 1680x1050
-nativedisplay apply --ipad
-nativedisplay apply --iphone
-nativedisplay apply --16x10
-nativedisplay apply --16x9
-nativedisplay add 1210x834
-nativedisplay watch
-nativedisplay local                 # desktop wins
-nativedisplay auto
-nativedisplay sentinel
-nativedisplay reflow --math
-nativedisplay reflow --dry
-nativedisplay reflow --install-agent
+native setup
+native status
+native list
+native apply                 # current viewer
+native apply 1680x1050
+native apply --ipad
+native apply --iphone
+native apply --16x10
+native apply --16x9
+native add 1210x834
+native watch
+native local                 # desktop wins
+native auto
+native sentinel
+native reflow --math
+native reflow --dry
+native reflow --install-agent
 ```
 
 `--dry` on `setup`, `apply`, `add`, `watch`, and `reflow` prints the action and does not change the display or install the override.
